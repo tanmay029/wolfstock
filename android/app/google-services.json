@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "680538888349",
+    "project_id": "wolfstock-94f38",
+    "storage_bucket": "wolfstock-94f38.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:680538888349:android:9920800d5b864496641c74",
+        "android_client_info": {
+          "package_name": "com.example.wolfstock"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4WaJtldz2i_dWrOMnaFTon8ihfRexdBI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

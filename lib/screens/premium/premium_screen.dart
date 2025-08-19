@@ -22,9 +22,8 @@ class PremiumScreen extends StatelessWidget {
           ),
         ),
         child: SafeArea(
-          child: GetBuilder<PremiumController>(
-            builder: (controller) =>
-                controller.isPremium ? _buildPremiumUser() : _buildUpgrade(),
+          child: Obx(
+            () => controller.isPremium ? _buildPremiumUser() : _buildUpgrade(),
           ),
         ),
       ),
@@ -173,16 +172,16 @@ class PremiumScreen extends StatelessWidget {
     return GetBuilder<PremiumController>(
       builder: (controller) {
         final isAvailable = controller.isPaymentSystemAvailable;
-        
+
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isAvailable 
+            color: isAvailable
                 ? const Color(0xFF00D4AA).withOpacity(0.1)
                 : Colors.red.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isAvailable 
+              color: isAvailable
                   ? const Color(0xFF00D4AA).withOpacity(0.3)
                   : Colors.red.withOpacity(0.3),
             ),
@@ -200,14 +199,18 @@ class PremiumScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isAvailable ? 'Payment System Ready' : 'Payment System Unavailable',
+                      isAvailable
+                          ? 'Payment System Ready'
+                          : 'Payment System Unavailable',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: isAvailable ? const Color(0xFF00D4AA) : Colors.red,
+                        color: isAvailable
+                            ? const Color(0xFF00D4AA)
+                            : Colors.red,
                       ),
                     ),
                     Text(
-                      isAvailable 
+                      isAvailable
                           ? 'Razorpay payment gateway is ready for secure transactions'
                           : 'Please restart the app and try again',
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
@@ -245,7 +248,9 @@ class PremiumScreen extends StatelessWidget {
             gradient: LinearGradient(
               colors: [
                 Color(int.parse(badge?['color'] ?? '0xFF00D4AA')),
-                Color(int.parse(badge?['color'] ?? '0xFF00D4AA')).withOpacity(0.7),
+                Color(
+                  int.parse(badge?['color'] ?? '0xFF00D4AA'),
+                ).withOpacity(0.7),
               ],
             ),
             borderRadius: BorderRadius.circular(20),
@@ -405,15 +410,17 @@ class PremiumScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           child: Obx(() {
             final isSelected = controller.selectedPlan.value == planKey;
-            
+
             return GetBuilder<PremiumController>(
               builder: (controller) {
                 final isSystemAvailable = controller.isPaymentSystemAvailable;
-                
+
                 return Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Get.isDarkMode ? const Color(0xFF2D2D2D) : Colors.white,
+                    color: Get.isDarkMode
+                        ? const Color(0xFF2D2D2D)
+                        : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isSelected
@@ -459,7 +466,9 @@ class PremiumScreen extends StatelessWidget {
                                         ),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFF00D4AA),
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                         ),
                                         child: const Text(
                                           'BEST VALUE',
@@ -530,11 +539,13 @@ class PremiumScreen extends StatelessWidget {
                           Radio<String>(
                             value: planKey,
                             groupValue: controller.selectedPlan.value,
-                            onChanged: isSystemAvailable ? (value) {
-                              if (value != null) {
-                                controller.selectedPlan.value = value;
-                              }
-                            } : null,
+                            onChanged: isSystemAvailable
+                                ? (value) {
+                                    if (value != null) {
+                                      controller.selectedPlan.value = value;
+                                    }
+                                  }
+                                : null,
                             activeColor: const Color(0xFF00D4AA),
                           ),
                         ],
@@ -542,55 +553,63 @@ class PremiumScreen extends StatelessWidget {
                       const SizedBox(height: 16),
 
                       // Enhanced Payment Button with proper reactive updates
-                      Obx(() => ElevatedButton(
-                        onPressed: (!controller.isProcessing.value && isSystemAvailable)
-                            ? () {
-                                print('Payment button pressed for plan: $planKey');
-                                _handlePayment(planKey, plan);
-                              }
-                            : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isSystemAvailable 
-                              ? const Color(0xFF00D4AA) 
-                              : Colors.grey,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(double.infinity, 50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                      Obx(
+                        () => ElevatedButton(
+                          onPressed:
+                              (!controller.isProcessing.value &&
+                                  isSystemAvailable)
+                              ? () {
+                                  print(
+                                    'Payment button pressed for plan: $planKey',
+                                  );
+                                  _handlePayment(planKey, plan);
+                                }
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isSystemAvailable
+                                ? const Color(0xFF00D4AA)
+                                : Colors.grey,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
+                          child: controller.isProcessing.value
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                              : !isSystemAvailable
+                              ? const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.error_outline, size: 20),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Payment System Unavailable',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.payment, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Pay ₹${plan['price'].toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                         ),
-                        child: controller.isProcessing.value
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : !isSystemAvailable
-                                ? const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.error_outline, size: 20),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Payment System Unavailable',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(Icons.payment, size: 20),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Pay ₹${plan['price'].toStringAsFixed(0)}',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                      )),
+                      ),
 
                       if (!isSystemAvailable) ...[
                         const SizedBox(height: 8),
@@ -608,7 +627,11 @@ class PremiumScreen extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.credit_card, size: 16, color: Colors.grey[600]),
+                            Icon(
+                              Icons.credit_card,
+                              size: 16,
+                              color: Colors.grey[600],
+                            ),
                             const SizedBox(width: 4),
                             Icon(
                               Icons.account_balance,
@@ -624,7 +647,10 @@ class PremiumScreen extends StatelessWidget {
                             const SizedBox(width: 8),
                             Text(
                               'Cards, UPI, Net Banking',
-                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
                             ),
                           ],
                         ),
@@ -644,7 +670,7 @@ class PremiumScreen extends StatelessWidget {
     print('=== Payment Debug Info ===');
     print('Plan: $planKey');
     print('Plan  $plan');
-    
+
     try {
       controller.handlePaymentRequest(planKey);
     } catch (e) {
@@ -662,7 +688,7 @@ class PremiumScreen extends StatelessWidget {
     return GetBuilder<PremiumController>(
       builder: (controller) {
         final isAvailable = controller.isPaymentSystemAvailable;
-        
+
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -674,14 +700,14 @@ class PremiumScreen extends StatelessWidget {
               Row(
                 children: [
                   Icon(
-                    Icons.security, 
+                    Icons.security,
                     color: isAvailable ? const Color(0xFF00D4AA) : Colors.grey,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'Secure Payment Options',
                     style: TextStyle(
-                      fontWeight: FontWeight.bold, 
+                      fontWeight: FontWeight.bold,
                       fontSize: 16,
                       color: isAvailable ? null : Colors.grey,
                     ),
@@ -689,7 +715,10 @@ class PremiumScreen extends StatelessWidget {
                   const Spacer(),
                   if (isAvailable)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF00D4AA).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -705,7 +734,10 @@ class PremiumScreen extends StatelessWidget {
                     )
                   else
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.red.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -726,18 +758,26 @@ class PremiumScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildPaymentMethod(Icons.credit_card, 'Cards', isAvailable),
-                  _buildPaymentMethod(Icons.account_balance_wallet, 'UPI', isAvailable),
-                  _buildPaymentMethod(Icons.account_balance, 'Banking', isAvailable),
+                  _buildPaymentMethod(
+                    Icons.account_balance_wallet,
+                    'UPI',
+                    isAvailable,
+                  ),
+                  _buildPaymentMethod(
+                    Icons.account_balance,
+                    'Banking',
+                    isAvailable,
+                  ),
                   _buildPaymentMethod(Icons.wallet, 'Wallets', isAvailable),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
-                isAvailable 
+                isAvailable
                     ? 'Powered by Razorpay • 256-bit SSL Encryption'
                     : 'Payment system temporarily unavailable',
                 style: TextStyle(
-                  fontSize: 12, 
+                  fontSize: 12,
                   color: isAvailable ? Colors.grey[600] : Colors.red[600],
                 ),
                 textAlign: TextAlign.center,
@@ -755,23 +795,20 @@ class PremiumScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: isActive 
+            color: isActive
                 ? const Color(0xFF00D4AA).withOpacity(0.1)
                 : Colors.grey.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
-            icon, 
+            icon,
             color: isActive ? const Color(0xFF00D4AA) : Colors.grey,
           ),
         ),
         const SizedBox(height: 4),
         Text(
-          label, 
-          style: TextStyle(
-            fontSize: 12,
-            color: isActive ? null : Colors.grey,
-          ),
+          label,
+          style: TextStyle(fontSize: 12, color: isActive ? null : Colors.grey),
         ),
       ],
     );

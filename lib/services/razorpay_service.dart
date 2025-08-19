@@ -1,9 +1,12 @@
-// lib/services/razorpay_service.dart
+// ignore_for_file: avoid_print
+
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:wolfstock/config/local_config.dart';
+import 'package:wolfstock/controllers/bottom_nav_controller.dart';
 import 'package:wolfstock/controllers/premium_controller.dart';
+import 'package:wolfstock/controllers/stock_controller.dart';
 import '../models/user_model.dart';
 import 'auth_service.dart';
 import 'premium_service.dart';
@@ -12,13 +15,11 @@ class RazorpayService extends GetxService {
   late Razorpay _razorpay;
   final AuthService _authService = Get.find<AuthService>();
   
-  // Store current payment context
   String? _currentPlanType;
   String? _currentPlanName;
 
-  // Razorpay API Keys (Use test keys for development)
   static const String _keyId = LocalConfig.razorpayTestKeyId; 
-  static const String _keySecret = 'your_secret_key_here'; 
+  // static const String _keySecret = 'your_secret_key_here'; 
 
   @override
   void onInit() {
@@ -33,25 +34,20 @@ class RazorpayService extends GetxService {
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
   }
 
-  /// Process premium subscription payment
   Future<void> processPremiumPayment({
     required String planType,
     required double amount,
     required String planName,
   }) async {
     print('Processing payment: $planType, Amount: ₹$amount');
-    
     final user = _authService.currentUser.value;
     if (user == null) {
       Get.snackbar('Error', 'Please login to continue');
       return;
     }
 
-    // Store current payment context for success callback
     _currentPlanType = planType;
     _currentPlanName = planName;
-
-    // Convert amount to paise (smallest currency unit for INR)
     final amountInPaise = (amount * 100).toInt();
 
     var options = {
@@ -64,9 +60,7 @@ class RazorpayService extends GetxService {
         'email': user.email,
         'name': user.displayName ?? 'User',
       },
-      'theme': {
-        'color': '#00D4AA', // WolfStock primary color
-      },
+      'theme': {'color': '#00D4AA'},
       'currency': 'INR',
       'payment_capture': 1,
       'notes': {
@@ -91,160 +85,150 @@ class RazorpayService extends GetxService {
   }
 
   void _handlePaymentSuccess(PaymentSuccessResponse response) async {
-    print('Payment Success Handler Called');
+    print('🎉 Payment Success Handler Called');
     print('Payment ID: ${response.paymentId}');
     print('Order ID: ${response.orderId}');
     print('Signature: ${response.signature}');
-    
     try {
-      // Show loading dialog
       Get.dialog(
-        const Center(child: CircularProgressIndicator()),
+        const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00D4AA))),
+              SizedBox(height: 16),
+              Text('Activating your premium subscription...'),
+              SizedBox(height: 8),
+              Text('Please wait while we process your payment', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ),
+        ),
         barrierDismissible: false,
       );
-
-      // Use stored plan type or extract from response
       final planType = _currentPlanType ?? 'yearly';
-      print('Activating premium for plan: $planType');
-      
-      // Get PremiumService and activate premium
+      final planAmount = PremiumService.subscriptionPlans[planType]?['price']?.toDouble();
+      print('📦 Activating premium for plan: $planType, amount: ₹$planAmount');
       final premiumService = Get.find<PremiumService>();
       final success = await premiumService.activatePremiumAfterPayment(
         planType, 
         response.paymentId ?? '',
+        amount: planAmount,
       );
-      
-      Get.back(); // Close loading dialog
-
+      if (Get.isDialogOpen ?? false) Get.back();
       if (success) {
-        // CRITICAL: Force refresh user data and UI updates
+        print('✅ Premium activation successful, starting UI refresh...');
         await _refreshUserDataAndUI();
-        
-        // Show success dialog
-        Get.dialog(
-          AlertDialog(
-            title: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 30),
-                const SizedBox(width: 10),
-                const Text('Payment Successful!'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Payment ID: ${response.paymentId}'),
-                if (response.orderId != null)
-                  Text('Order ID: ${response.orderId}'),
-                const SizedBox(height: 10),
-                const Text(
-                  'Your premium subscription has been activated successfully!',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () {
-                  Get.back(); // Close success dialog
-                  // Navigate to premium screen to show updated status
-                  Get.offAllNamed('/premium');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00D4AA),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('View Premium Dashboard'),
-              ),
-            ],
-          ),
+        Get.snackbar(
+          'Payment Successful! 🎉',
+          'Your premium subscription is now active!',
+          backgroundColor: const Color(0xFF00D4AA),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+          snackPosition: SnackPosition.TOP,
         );
-
-        // Track the successful payment
+        await Future.delayed(const Duration(milliseconds: 1000));
+        print('🏠 Navigating to home screen...');
+        Get.offAllNamed('/home');
         _trackPaymentSuccess(response, planType);
-        
-        // Clear stored context
-        _currentPlanType = null;
-        _currentPlanName = null;
-        
       } else {
-        throw Exception('Failed to activate premium subscription');
+        throw Exception('Premium activation failed');
       }
-
     } catch (e) {
-      print('Error in payment success handler: $e');
-      Get.back(); // Close loading dialog if still open
+      print('❌ Error in payment success handler: $e');
+      if (Get.isDialogOpen ?? false) Get.back();
       Get.snackbar(
-        'Error',
-        'Payment successful but failed to activate premium: $e',
+        'Payment Successful',
+        'Payment completed! Activating premium features...',
         backgroundColor: Colors.orange,
         colorText: Colors.white,
+        duration: const Duration(seconds: 3),
       );
-      
-      // Even on error, try to refresh data in case it was actually successful
       await _refreshUserDataAndUI();
+      await Future.delayed(const Duration(milliseconds: 1500));
+      Get.offAllNamed('/home');
+    } finally {
+      _currentPlanType = null;
+      _currentPlanName = null;
     }
   }
 
-  /// CRITICAL: Refresh user data and trigger UI updates
   Future<void> _refreshUserDataAndUI() async {
     try {
-      print('Refreshing user data and UI after payment...');
-      
-      // 1. Refresh AuthService user data
-      await _authService.refreshCurrentUser();
-      
-      // 2. Force update PremiumController if registered
-      if (Get.isRegistered<PremiumController>()) {
-        final premiumController = Get.find<PremiumController>();
-        await premiumController.refreshPremiumStatus();
-        print('PremiumController updated');
+      print('🔄 Starting user data and UI refresh after payment...');
+      int retryCount = 0;
+      bool refreshSuccess = false;
+      while (retryCount < 3 && !refreshSuccess) {
+        try {
+          await _authService.refreshCurrentUser();
+          refreshSuccess = true;
+          print('✅ AuthService user data refreshed successfully');
+        } catch (e) {
+          retryCount++;
+          print('⚠️ Retry $retryCount: Error refreshing user  $e');
+          if (retryCount < 3) await Future.delayed(Duration(milliseconds: 500 * retryCount));
+        }
       }
-      
-      // 3. Force update any other controllers that depend on premium status
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (Get.isRegistered<PremiumController>()) {
+        try {
+          final premiumController = Get.find<PremiumController>();
+          await premiumController.refreshPremiumStatus();
+          premiumController.update();
+          print('✅ PremiumController refreshed and updated');
+        } catch (e) {
+          print('❌ Error updating PremiumController: $e');
+        }
+      }
       _updateAllDependentControllers();
-      
-      print('User data and UI refreshed successfully');
-      
+      await Future.delayed(const Duration(milliseconds: 300));
+      Get.forceAppUpdate();
+      print('🎉 User data and UI refresh completed successfully');
     } catch (e) {
-      print('Error refreshing user data and UI: $e');
+      print('❌ Error refreshing user data and UI: $e');
     }
   }
 
-  /// Update all controllers that depend on premium status
   void _updateAllDependentControllers() {
     try {
-      // Update any controllers that might be affected by premium status change
-      final registeredControllers = [
-        'BottomNavController',
-        'StockController',
-        'AIController', // If you have one
-        'ProfileController', // If you have one
+      final controllersToUpdate = [
+        () {
+          if (Get.isRegistered<BottomNavController>()) {
+            Get.find<BottomNavController>().update();
+            print('BottomNavController updated');
+          }
+        },
+        () {
+          if (Get.isRegistered<StockController>()) {
+            Get.find<StockController>().update();
+            print('StockController updated');
+          }
+        },
+        () {
+          if (Get.isRegistered<PremiumController>()) {
+            Get.find<PremiumController>().update();
+            print('PremiumController updated');
+          }
+        },
       ];
-      
-      for (final controllerName in registeredControllers) {
+      for (final updateController in controllersToUpdate) {
         try {
-          // This is a generic way to update GetX controllers
-          Get.find<GetxController>(tag: controllerName).update();
+          updateController();
         } catch (e) {
-          // Controller not registered, skip
+          print('Skipping controller update: $e');
           continue;
         }
       }
-      
+      print('All dependent controllers update completed');
     } catch (e) {
       print('Error updating dependent controllers: $e');
     }
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
-    print('Payment Error Handler Called');
+    print('❌ Payment Error Handler Called');
     print('Error Code: ${response.code}');
     print('Error Message: ${response.message}');
-    
     String errorMessage = 'Payment failed';
-    
     switch (response.code) {
       case Razorpay.NETWORK_ERROR:
         errorMessage = 'Network error. Please check your internet connection.';
@@ -261,32 +245,25 @@ class RazorpayService extends GetxService {
       default:
         errorMessage = response.message ?? 'Unknown error occurred';
     }
-
     Get.snackbar(
       'Payment Failed',
       errorMessage,
       backgroundColor: Colors.red,
       colorText: Colors.white,
       duration: const Duration(seconds: 4),
+      snackPosition: SnackPosition.TOP,
     );
-
-    // Reset processing state in PremiumController
     if (Get.isRegistered<PremiumController>()) {
       Get.find<PremiumController>().onPaymentFailure(errorMessage);
     }
-
-    // Clear stored context
+    _trackPaymentError(response);
     _currentPlanType = null;
     _currentPlanName = null;
-
-    // Track the failed payment
-    _trackPaymentError(response);
   }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
     print('External Wallet Handler Called');
     print('Wallet Name: ${response.walletName}');
-    
     Get.snackbar(
       'External Wallet',
       'You selected: ${response.walletName}',
@@ -296,7 +273,6 @@ class RazorpayService extends GetxService {
   }
 
   void _trackPaymentSuccess(PaymentSuccessResponse response, String planType) {
-    // Implement analytics tracking
     print('=== Payment Success Analytics ===');
     print('Payment ID: ${response.paymentId}');
     print('Plan Type: $planType');
@@ -305,31 +281,49 @@ class RazorpayService extends GetxService {
     print('User: ${_authService.currentUser.value?.email}');
     print('Timestamp: ${DateTime.now().toIso8601String()}');
     print('================================');
-    
-    // TODO: Send to your analytics service (Firebase Analytics, etc.)
+    // Integrate Firebase Analytics or similar here if required
   }
 
   void _trackPaymentError(PaymentFailureResponse response) {
-    // Implement analytics tracking
     print('=== Payment Error Analytics ===');
     print('Error Code: ${response.code}');
     print('Error Message: ${response.message}');
     print('User: ${_authService.currentUser.value?.email}');
     print('Timestamp: ${DateTime.now().toIso8601String()}');
     print('===============================');
-    
-    // TODO: Send to your analytics service
+    // Integrate Firebase Analytics or similar here if required
   }
 
-  /// Check if Razorpay is properly initialized
   bool get isInitialized => _razorpay != null;
-
-  /// Get current Razorpay version info
   String get version => 'Razorpay Flutter SDK';
 
-  /// Manual refresh trigger (for testing purposes)
   Future<void> triggerManualRefresh() async {
     await _refreshUserDataAndUI();
+  }
+
+  void debugPremiumStatusUpdate() async {
+    print('🔍 === DEBUGGING PREMIUM STATUS UPDATE ===');
+    final user = _authService.currentUser.value;
+    print('AuthService User Email: ${user?.email}');
+    print('AuthService User Premium: ${user?.hasActivePremium}');
+    print('AuthService User Plan: ${user?.subscriptionPlan}');
+    if (Get.isRegistered<PremiumService>()) {
+      final premiumService = Get.find<PremiumService>();
+      print('PremiumService isPremium: ${premiumService.isPremiumUser}');
+      print('PremiumService currentPlan: ${premiumService.currentPlan}');
+    }
+    if (Get.isRegistered<PremiumController>()) {
+      final premiumController = Get.find<PremiumController>();
+      print('PremiumController isPremium: ${premiumController.isPremium}');
+      print('PremiumController currentPlan: ${premiumController.currentPlan}');
+    }
+    print('🔍 === DEBUG COMPLETE ===');
+  }
+
+  Future<void> testManualRefresh() async {
+    print('🧪 Testing manual refresh...');
+    await _refreshUserDataAndUI();
+    debugPremiumStatusUpdate();
   }
 
   @override
@@ -343,4 +337,3 @@ class RazorpayService extends GetxService {
     super.onClose();
   }
 }
-

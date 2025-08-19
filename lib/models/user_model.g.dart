@@ -33,13 +33,20 @@ class UserModelAdapter extends TypeAdapter<UserModel> {
       lastActiveAt: fields[13] as DateTime?,
       isEmailVerified: fields[14] as bool,
       fcmToken: fields[15] as String?,
+      isPremiumUser: fields[16] as bool,
+      premiumExpiryDate: fields[17] as DateTime?,
+      subscriptionPlan: fields[18] as String?,
+      subscriptionStartDate: fields[19] as DateTime?,
+      premiumFeaturesUsed: (fields[20] as List).cast<String>(),
+      lastPaymentId: fields[21] as String?,
+      subscriptionCancelled: fields[22] as bool?,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserModel obj) {
     writer
-      ..writeByte(16)
+      ..writeByte(23)
       ..writeByte(0)
       ..write(obj.uid)
       ..writeByte(1)
@@ -71,7 +78,21 @@ class UserModelAdapter extends TypeAdapter<UserModel> {
       ..writeByte(14)
       ..write(obj.isEmailVerified)
       ..writeByte(15)
-      ..write(obj.fcmToken);
+      ..write(obj.fcmToken)
+      ..writeByte(16)
+      ..write(obj.isPremiumUser)
+      ..writeByte(17)
+      ..write(obj.premiumExpiryDate)
+      ..writeByte(18)
+      ..write(obj.subscriptionPlan)
+      ..writeByte(19)
+      ..write(obj.subscriptionStartDate)
+      ..writeByte(20)
+      ..write(obj.premiumFeaturesUsed)
+      ..writeByte(21)
+      ..write(obj.lastPaymentId)
+      ..writeByte(22)
+      ..write(obj.subscriptionCancelled);
   }
 
   @override
@@ -107,13 +128,17 @@ class UserPreferencesAdapter extends TypeAdapter<UserPreferences> {
       alertThreshold: fields[8] as double,
       chartType: fields[9] as String,
       defaultTimeframe: fields[10] as String,
+      marketOpeningAlerts: fields[11] as bool,
+      portfolioSummaryAlerts: fields[12] as bool,
+      preferredMarket: fields[13] as String,
+      aiRecommendationAlerts: fields[14] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserPreferences obj) {
     writer
-      ..writeByte(11)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.currency)
       ..writeByte(1)
@@ -135,7 +160,15 @@ class UserPreferencesAdapter extends TypeAdapter<UserPreferences> {
       ..writeByte(9)
       ..write(obj.chartType)
       ..writeByte(10)
-      ..write(obj.defaultTimeframe);
+      ..write(obj.defaultTimeframe)
+      ..writeByte(11)
+      ..write(obj.marketOpeningAlerts)
+      ..writeByte(12)
+      ..write(obj.portfolioSummaryAlerts)
+      ..writeByte(13)
+      ..write(obj.preferredMarket)
+      ..writeByte(14)
+      ..write(obj.aiRecommendationAlerts);
   }
 
   @override
@@ -170,13 +203,16 @@ class UserProfileAdapter extends TypeAdapter<UserProfile> {
       portfolioValue: fields[7] as double?,
       occupation: fields[8] as String?,
       socialLinks: (fields[9] as Map?)?.cast<String, dynamic>(),
+      annualIncome: fields[10] as String?,
+      investmentHorizon: fields[11] as String?,
+      interestedSectors: (fields[12] as List).cast<String>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, UserProfile obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.bio)
       ..writeByte(1)
@@ -196,7 +232,13 @@ class UserProfileAdapter extends TypeAdapter<UserProfile> {
       ..writeByte(8)
       ..write(obj.occupation)
       ..writeByte(9)
-      ..write(obj.socialLinks);
+      ..write(obj.socialLinks)
+      ..writeByte(10)
+      ..write(obj.annualIncome)
+      ..writeByte(11)
+      ..write(obj.investmentHorizon)
+      ..writeByte(12)
+      ..write(obj.interestedSectors);
   }
 
   @override

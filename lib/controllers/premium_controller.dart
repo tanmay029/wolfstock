@@ -356,3 +356,11 @@ class PremiumController extends GetxController {
     super.onClose();
   }
 }
+
+
+/*
+profile_screen.dart
+premium_screen.dart
+razorpay_service.dart
+
+*/

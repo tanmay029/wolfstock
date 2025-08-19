@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-// import 'package:lottie/lottie.dart';
+import '../services/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -11,12 +11,26 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToNext();
+    _checkAuthAndNavigate();
   }
 
-  void _navigateToNext() async {
-    await Future.delayed(const Duration(seconds: 3));
-    Get.offAllNamed('/login');
+  void _checkAuthAndNavigate() async {
+    await Future.delayed(
+      const Duration(seconds: 3),
+    ); // Keep splash visible for 3 seconds
+
+    final AuthService _authService = Get.find<AuthService>();
+
+    // Check if user is already signed in
+    final currentUser = _authService.currentUser.value;
+
+    if (currentUser != null) {
+      // User is already logged in, go to home
+      Get.offAllNamed('/home');
+    } else {
+      // No active session, go to login
+      Get.offAllNamed('/login');
+    }
   }
 
   @override
@@ -49,7 +63,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 30),
-            
+
             // App Name
             ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
@@ -65,7 +79,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            
+
             // Tagline
             const Text(
               'Smart Investing with AI',
@@ -75,9 +89,9 @@ class _SplashScreenState extends State<SplashScreen> {
                 fontWeight: FontWeight.w300,
               ),
             ),
-            
+
             const SizedBox(height: 50),
-            
+
             // Loading Animation
             const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00D4AA)),

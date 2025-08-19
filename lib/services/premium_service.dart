@@ -115,94 +115,126 @@ class PremiumService extends GetxService {
   }
 
   /// Purchase premium subscription using Razorpay ONLY
-  Future<bool> purchasePremiumWithRazorpay(String planType) async {
-    print('PremiumService.purchasePremiumWithRazorpay called with: $planType');
+  // In your premium_service.dart, update the purchasePremiumWithRazorpay method:
+
+Future<bool> purchasePremiumWithRazorpay(String planType) async {
+  print('PremiumService.purchasePremiumWithRazorpay called with: $planType');
+  
+  try {
+    final user = _authService.currentUser.value;
+    if (user == null) {
+      Get.snackbar('Error', 'Please log in to purchase premium');
+      return false;
+    }
+
+    final plan = subscriptionPlans[planType];
+    if (plan == null) {
+      Get.snackbar('Error', 'Invalid subscription plan');
+      return false;
+    }
+
+    // Check if RazorpayService is available - REQUIRED
+    if (!Get.isRegistered<RazorpayService>()) {
+      Get.snackbar(
+        'Payment Error',
+        'Payment service is not available. Please restart the app and try again.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
+      return false;
+    }
+
+    // Get Razorpay service
+    final razorpayService = Get.find<RazorpayService>();
     
+    print('Calling RazorpayService.processPremiumPayment');
     try {
-      final user = _authService.currentUser.value;
-      if (user == null) {
-        Get.snackbar('Error', 'Please log in to purchase premium');
-        return false;
-      }
-
-      final plan = subscriptionPlans[planType];
-      if (plan == null) {
-        Get.snackbar('Error', 'Invalid subscription plan');
-        return false;
-      }
-
-      // Check if RazorpayService is available - REQUIRED
-      if (!Get.isRegistered<RazorpayService>()) {
-        Get.snackbar(
-          'Payment Error',
-          'Payment service is not available. Please restart the app and try again.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 5),
-        );
-        return false;
-      }
-
-      // Get Razorpay service
-      final razorpayService = Get.find<RazorpayService>();
-      
-      print('Calling RazorpayService.processPremiumPayment');
       await razorpayService.processPremiumPayment(
         planType: planType,
         amount: plan['price'].toDouble(),
         planName: plan['name'],
       );
 
+      // Payment initiated successfully - actual success/failure will be handled in Razorpay callbacks
       return true;
-
+      
     } catch (e) {
-      print('Error in purchasePremiumWithRazorpay: $e');
-      Get.snackbar(
-        'Payment Error',
-        'Failed to process payment: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      print('Payment processing failed: $e');
       return false;
     }
+
+  } catch (e) {
+    print('Error in purchasePremiumWithRazorpay: $e');
+    Get.snackbar(
+      'Payment Error',
+      'Failed to process payment: $e',
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
+    );
+    return false;
   }
+}
+
 
   // REMOVED: Mock purchasePremium method - no longer available
 
   /// Activate premium after successful Razorpay payment
-  Future<bool> activatePremiumAfterPayment(String planType, String paymentId) async {
-    print('Activating premium for plan: $planType, paymentId: $paymentId');
-    
-    try {
-      final plan = subscriptionPlans[planType];
-      if (plan == null) {
-        print('Invalid plan type: $planType');
-        return false;
-      }
-
-      // Calculate expiry date
-      DateTime? expiryDate;
-      if (planType != 'lifetime') {
-        expiryDate = DateTime.now().add(Duration(days: plan['duration']));
-      }
-
-      // Update user premium status with payment ID
-      await _updatePremiumStatus(
-        isPremium: true,
-        plan: planType,
-        expiryDate: expiryDate,
-        startDate: DateTime.now(),
-        paymentId: paymentId,
-      );
-
-      print('Premium activated successfully');
-      return true;
-
-    } catch (e) {
-      print('Error activating premium: $e');
+  Future<bool> activatePremiumAfterPayment(String planType, String paymentId, {double? amount}) async {
+  print('Activating premium for plan: $planType, paymentId: $paymentId');
+  
+  try {
+    final plan = subscriptionPlans[planType];
+    if (plan == null) {
+      print('Invalid plan type: $planType');
       return false;
     }
+
+    // Calculate expiry date
+    DateTime? expiryDate;
+    if (planType != 'lifetime') {
+      expiryDate = DateTime.now().add(Duration(days: plan['duration']));
+    }
+
+    // Update user premium status with payment ID and amount
+    await _updatePremiumStatus(
+      isPremium: true,
+      plan: planType,
+      expiryDate: expiryDate,
+      startDate: DateTime.now(),
+      paymentId: paymentId,
+      amount: amount ?? plan['price'],
+    );
+
+    print('Premium activated successfully');
+    return true;
+
+  } catch (e) {
+    print('Error activating premium: $e');
+    return false;
   }
+}
+
+Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
+  final user = _authService.currentUser.value;
+  if (user == null) return [];
+
+  try {
+    final querySnapshot = await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('purchase_history')
+        .orderBy('purchaseDate', descending: true)
+        .get();
+
+    return querySnapshot.docs
+        .map((doc) => {'id': doc.id, ...doc.data()})
+        .toList();
+  } catch (e) {
+    print('Error fetching detailed purchase history: $e');
+    return [];
+  }
+}
 
   /// Restore premium subscription - only works with real payment history
   Future<bool> restorePremium() async {
@@ -324,63 +356,94 @@ class PremiumService extends GetxService {
 
   /// Update premium status in Firestore - ONLY for Razorpay payments
   Future<void> _updatePremiumStatus({
-    required bool isPremium,
-    String? plan,
-    DateTime? expiryDate,
-    DateTime? startDate,
-    String? paymentId,
-    bool cancelled = false,
-  }) async {
-    final user = _authService.currentUser.value;
-    if (user == null) return;
+  required bool isPremium,
+  String? plan,
+  DateTime? expiryDate,
+  DateTime? startDate,
+  String? paymentId,
+  bool cancelled = false,
+  double? amount, // Add amount parameter
+}) async {
+  final user = _authService.currentUser.value;
+  if (user == null) return;
 
-    print('Updating premium status for user: ${user.uid}');
-    print('Plan: $plan, isPremium: $isPremium, paymentId: $paymentId');
+  print('Updating premium status for user: ${user.uid}');
+  print('Plan: $plan, isPremium: $isPremium, paymentId: $paymentId');
 
-    final updateData = {
-      'isPremiumUser': isPremium,
-      'subscriptionPlan': plan,
-      'premiumExpiryDate': expiryDate?.toIso8601String(),
-      'subscriptionStartDate': startDate?.toIso8601String(),
-      'subscriptionCancelled': cancelled,
-      'lastPaymentId': paymentId,
-      'lastUpdated': DateTime.now().toIso8601String(),
-    };
+  final updateData = {
+    'isPremiumUser': isPremium,
+    'subscriptionPlan': plan,
+    'premiumExpiryDate': expiryDate?.toIso8601String(),
+    'subscriptionStartDate': startDate?.toIso8601String(),
+    'subscriptionCancelled': cancelled,
+    'lastPaymentId': paymentId,
+    'lastUpdated': DateTime.now().toIso8601String(),
+  };
 
-    try {
+  try {
+    await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .update(updateData);
+
+    // Store detailed payment record ONLY for real Razorpay payments
+    if (paymentId != null && plan != null) {
+      final planDetails = subscriptionPlans[plan];
+      final purchaseAmount = amount ?? planDetails?['price'] ?? 0.0;
+      
+      // Generate a unique reference number
+      final referenceNumber = 'WS${DateTime.now().millisecondsSinceEpoch}${user.uid.substring(0, 6).toUpperCase()}';
+      
+      // Calculate validity based on plan
+      String validity;
+      if (plan == 'lifetime') {
+        validity = 'Lifetime';
+      } else if (plan == 'yearly') {
+        validity = '1 Year';
+      } else if (plan == 'monthly') {
+        validity = '1 Month';
+      } else {
+        validity = planDetails?['duration']?.toString() ?? 'N/A';
+      }
+
       await _firestore
           .collection('users')
           .doc(user.uid)
-          .update(updateData);
+          .collection('purchase_history')
+          .doc(paymentId)
+          .set({
+        'referenceNumber': referenceNumber,
+        'paymentId': paymentId,
+        'plan': plan,
+        'planName': planDetails?['name'] ?? plan,
+        'amount': purchaseAmount,
+        'currency': planDetails?['currency'] ?? 'INR',
+        'validity': validity,
+        'validityDays': planDetails?['duration'] ?? -1,
+        'purchaseDate': DateTime.now().toIso8601String(),
+        'expiryDate': expiryDate?.toIso8601String(),
+        'status': 'completed',
+        'method': 'razorpay',
+        'features': planDetails?['features'] ?? [],
+        'badge': planDetails?['badge'] ?? 'Premium',
+        'savings': planDetails?['savings'],
+        'userEmail': user.email,
+        'userName': user.displayName ?? 'User',
+      });
 
-      // Store payment record ONLY for real Razorpay payments
-      if (paymentId != null && plan != null) {
-        await _firestore
-            .collection('users')
-            .doc(user.uid)
-            .collection('payments')
-            .doc(paymentId)
-            .set({
-          'paymentId': paymentId,
-          'plan': plan,
-          'amount': subscriptionPlans[plan]?['price'],
-          'currency': subscriptionPlans[plan]?['currency'] ?? 'INR',
-          'status': 'completed',
-          'timestamp': DateTime.now().toIso8601String(),
-          'method': 'razorpay', // Only Razorpay payments
-        });
-      }
-
-      // Update local user data
-      await _authService.updateUserProfile(updateData);
-      
-      print('Premium status updated successfully');
-
-    } catch (e) {
-      print('Error updating premium status: $e');
-      rethrow;
+      print('Purchase history entry created with reference: $referenceNumber');
     }
+
+    // Update local user data
+    await _authService.updateUserProfile(updateData);
+    
+    print('Premium status updated successfully');
+
+  } catch (e) {
+    print('Error updating premium status: $e');
+    rethrow;
   }
+}
 
   /// Check premium status and update if expired
   Future<void> _checkPremiumStatus() async {

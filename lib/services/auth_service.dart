@@ -19,13 +19,19 @@ class AuthService extends GetxService {
   }
 
   void _setInitialScreen(User? user) {
-    if (user == null) {
+  if (user == null) {
+    // Only redirect to login if we don't have cached user data
+    if (currentUser.value == null) {
       Get.offAllNamed('/login');
-    } else {
-      _loadUserData(user.uid);
+    }
+  } else {
+    _loadUserData(user.uid);
+    // Only redirect if not already on home screen
+    if (Get.currentRoute != '/home') {
       Get.offAllNamed('/home');
     }
   }
+}
 
   Future<bool> signUp(String email, String password, String displayName) async {
     try {
@@ -129,6 +135,7 @@ class AuthService extends GetxService {
         });
         
         currentUser.value = updatedUser; // This triggers reactive updates
+        currentUser.refresh(); 
         await _saveUserToLocal(updatedUser);
         
         print('User data refreshed successfully - isPremium: ${updatedUser.hasActivePremium}');
@@ -149,6 +156,7 @@ class AuthService extends GetxService {
         
         await _firestore.collection('users').doc(firebaseUser.value!.uid).update(updateData);
         await _loadUserData(firebaseUser.value!.uid);
+        currentUser.refresh();
         
         print('User profile updated successfully');
       } catch (e) {
@@ -251,18 +259,27 @@ class AuthService extends GetxService {
 
   /// Initialize user data (called on app start)
   Future<void> initializeUserData() async {
-    final user = _auth.currentUser;
-    if (user != null) {
-      // Try to load from local storage first for faster UI
-      final localUser = await _loadUserFromLocal();
-      if (localUser != null) {
-        currentUser.value = localUser;
-      }
-      
-      // Then refresh from Firestore to ensure data is up-to-date
-      await _loadUserData(user.uid);
+  final user = _auth.currentUser;
+  if (user != null) {
+    // Try to load from local storage first for faster UI
+    final localUser = await _loadUserFromLocal();
+    if (localUser != null) {
+      currentUser.value = localUser;
+      print('User loaded from local storage: ${localUser.email}');
+    }
+    
+    // Then refresh from Firestore to ensure data is up-to-date
+    await _loadUserData(user.uid);
+  } else {
+    // Check if we have cached user data even without Firebase user
+    final localUser = await _loadUserFromLocal();
+    if (localUser != null) {
+      // Try to reauthenticate or handle cached data appropriately
+      print('Found cached user data but no Firebase user');
+      await _clearUserFromLocal();
     }
   }
+}
 
   /// Check if user has premium access (helper method)
   bool get isPremiumUser => currentUser.value?.hasActivePremium ?? false;

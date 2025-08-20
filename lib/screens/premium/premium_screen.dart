@@ -5,7 +5,7 @@ import '../../controllers/premium_controller.dart';
 import '../../services/premium_service.dart';
 
 class PremiumScreen extends StatelessWidget {
-  final PremiumController controller = Get.put(PremiumController());
+  final PremiumController controller = Get.find<PremiumController>();
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +23,9 @@ class PremiumScreen extends StatelessWidget {
         ),
         child: SafeArea(
           child: Obx(
-            () => controller.isPremium ? _buildPremiumUser() : _buildUpgrade(),
+            () => controller.isPremium.value
+                ? _buildPremiumUser()
+                : _buildUpgrade(),
           ),
         ),
       ),
@@ -84,7 +86,9 @@ class PremiumScreen extends StatelessWidget {
         Expanded(
           child: GetBuilder<PremiumController>(
             builder: (controller) => Text(
-              controller.isPremium ? 'Premium Dashboard' : 'Upgrade to Premium',
+              controller.isPremium.value
+                  ? 'Premium Dashboard'
+                  : 'Upgrade to Premium',
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -237,111 +241,105 @@ class PremiumScreen extends StatelessWidget {
   }
 
   Widget _buildPremiumStatus() {
-    return GetBuilder<PremiumController>(
-      builder: (controller) {
-        final stats = controller.premiumStats;
-        final badge = controller.premiumBadge;
+    return Obx(() {
+      final stats = controller.premiumStats;
+      final badge = controller.premiumBadge;
 
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Color(int.parse(badge?['color'] ?? '0xFF00D4AA')),
-                Color(
-                  int.parse(badge?['color'] ?? '0xFF00D4AA'),
-                ).withOpacity(0.7),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.verified, color: Colors.white, size: 30),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      badge?['name'] ?? 'Premium User',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      _showPremiumDetails();
-                    },
-                    icon: const Icon(Icons.info_outline, color: Colors.white),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildStatItem(
-                    'Plan',
-                    stats['planName'] ?? 'Premium',
-                    Icons.card_membership,
-                  ),
-                  _buildStatItem(
-                    'Days Left',
-                    controller.currentPlan == 'lifetime'
-                        ? '∞'
-                        : stats['daysRemaining'].toString(),
-                    Icons.schedule,
-                  ),
-                  _buildStatItem(
-                    'Features',
-                    stats['features'].toString(),
-                    Icons.star,
-                  ),
-                ],
-              ),
-              if (controller.isExpiringSoon) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning, color: Colors.orange),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Your premium subscription expires in ${controller.daysUntilExpiry} days',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          _showRenewalOptions();
-                        },
-                        child: const Text(
-                          'Renew',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(int.parse(badge?['color'] ?? '0xFF00D4AA')),
+              Color(
+                int.parse(badge?['color'] ?? '0xFF00D4AA'),
+              ).withOpacity(0.7),
             ],
           ),
-        );
-      },
-    );
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.verified, color: Colors.white, size: 30),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    badge?['name'] ?? 'Premium User',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _showPremiumDetails(),
+                  icon: const Icon(Icons.info_outline, color: Colors.white),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatItem(
+                  'Plan',
+                  stats['planName'] ?? 'Premium',
+                  Icons.card_membership,
+                ),
+                _buildStatItem(
+                  'Days Left',
+                  controller.currentPlan.value == 'lifetime'
+                      ? '∞'
+                      : controller.daysUntilExpiry.value.toString(),
+                  Icons.schedule,
+                ),
+                _buildStatItem(
+                  'Features',
+                  stats['features'].toString(),
+                  Icons.star,
+                ),
+              ],
+            ),
+            if (controller.isExpiringSoon.value) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Your premium subscription expires in ${controller.daysUntilExpiry.value} days',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => _showRenewalOptions(),
+                      child: const Text(
+                        'Renew',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildStatItem(String label, String value, IconData icon) {
@@ -683,6 +681,8 @@ class PremiumScreen extends StatelessWidget {
       );
     }
   }
+
+  
 
   Widget _buildPaymentOptions() {
     return GetBuilder<PremiumController>(
@@ -1096,56 +1096,50 @@ class PremiumScreen extends StatelessWidget {
   }
 
   void _showPremiumDetails() {
-    final stats = controller.premiumStats;
-    Get.dialog(
-      AlertDialog(
-        title: const Text('Premium Details'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Plan: ${stats['planName']}'),
-            Text('Started: ${stats['startDate']?.toString().split(' ')[0]}'),
-            if (stats['expiryDate'] != null)
-              Text('Expires: ${stats['expiryDate']?.toString().split(' ')[0]}'),
-            Text('Features: ${stats['features']} active'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Get.back();
-            },
-            child: const Text('Close'),
-          ),
+  final stats = controller.premiumStats;
+  Get.dialog(
+    AlertDialog(
+      title: const Text('Premium Details'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Plan: ${stats['planName']}'),
+          Text('Started: ${stats['startDate']?.toString().split(' ')[0]}'),
+          if (stats['expiryDate'] != null)
+            Text('Expires: ${stats['expiryDate']?.toString().split(' ')}'),
+          Text('Features: ${stats['features']} active'),
         ],
       ),
-    );
-  }
+      actions: [
+        TextButton(
+          onPressed: () => Get.back(),
+          child: const Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
 
-  void _showRenewalOptions() {
-    Get.dialog(
-      AlertDialog(
-        title: const Text('Renew Subscription'),
-        content: const Text(
-          'Choose a plan to renew your premium subscription:',
+void _showRenewalOptions() {
+  Get.dialog(
+    AlertDialog(
+      title: const Text('Renew Subscription'),
+      content: const Text('Choose a plan to renew your premium subscription:'),
+      actions: [
+        TextButton(
+          onPressed: () => Get.back(),
+          child: const Text('Cancel'),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Get.back();
-            },
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Get.back();
-              // Navigate back to pricing plans section
-              Get.offAllNamed('/premium');
-            },
-            child: const Text('View Plans'),
-          ),
-        ],
-      ),
-    );
-  }
+        ElevatedButton(
+          onPressed: () {
+            Get.back();
+            Get.offAllNamed('/premium');
+          },
+          child: const Text('View Plans'),
+        ),
+      ],
+    ),
+  );
+}
+
 }

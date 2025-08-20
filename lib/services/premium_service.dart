@@ -2,14 +2,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:hive/hive.dart';
 import '../models/user_model.dart';
 import 'auth_service.dart';
-import 'razorpay_service.dart'; // Add proper import
+import 'razorpay_service.dart';
 
 class PremiumService extends GetxService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final AuthService _authService = Get.find<AuthService>();
-  
+
   // Premium feature flags
   static const List<String> premiumFeatures = [
     'advanced_ai_insights',
@@ -21,7 +22,7 @@ class PremiumService extends GetxService {
     'dark_web_integration',
     'priority_support',
     'custom_watchlists',
-    'real_time_notifications'
+    'real_time_notifications',
   ];
 
   // Subscription plans with INR pricing for Razorpay
@@ -108,133 +109,130 @@ class PremiumService extends GetxService {
     if (!isPremiumUser) return null;
     final user = _authService.currentUser.value;
     final plan = subscriptionPlans[user?.subscriptionPlan];
-    return plan != null ? {
-      'name': plan['badge'],
-      'color': plan['color'],
-    } : null;
+    return plan != null
+        ? {'name': plan['badge'], 'color': plan['color']}
+        : null;
   }
 
   /// Purchase premium subscription using Razorpay ONLY
-  // In your premium_service.dart, update the purchasePremiumWithRazorpay method:
+  Future<bool> purchasePremiumWithRazorpay(String planType) async {
+    print('💳 PremiumService.purchasePremiumWithRazorpay called with: $planType');
 
-Future<bool> purchasePremiumWithRazorpay(String planType) async {
-  print('PremiumService.purchasePremiumWithRazorpay called with: $planType');
-  
-  try {
-    final user = _authService.currentUser.value;
-    if (user == null) {
-      Get.snackbar('Error', 'Please log in to purchase premium');
-      return false;
-    }
+    try {
+      final user = _authService.currentUser.value;
+      if (user == null) {
+        Get.snackbar('Error', 'Please log in to purchase premium');
+        return false;
+      }
 
-    final plan = subscriptionPlans[planType];
-    if (plan == null) {
-      Get.snackbar('Error', 'Invalid subscription plan');
-      return false;
-    }
+      final plan = subscriptionPlans[planType];
+      if (plan == null) {
+        Get.snackbar('Error', 'Invalid subscription plan');
+        return false;
+      }
 
-    // Check if RazorpayService is available - REQUIRED
-    if (!Get.isRegistered<RazorpayService>()) {
+      // Check if RazorpayService is available - REQUIRED
+      if (!Get.isRegistered<RazorpayService>()) {
+        Get.snackbar(
+          'Payment Error',
+          'Payment service is not available. Please restart the app and try again.',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 5),
+        );
+        return false;
+      }
+
+      // Get Razorpay service
+      final razorpayService = Get.find<RazorpayService>();
+
+      print('📞 Calling RazorpayService.processPremiumPayment');
+      try {
+        await razorpayService.processPremiumPayment(
+          planType: planType,
+          amount: plan['price'].toDouble(),
+          planName: plan['name'],
+        );
+
+        // Payment initiated successfully - actual success/failure will be handled in Razorpay callbacks
+        print('✅ Payment initiated successfully');
+        return true;
+      } catch (e) {
+        print('❌ Payment processing failed: $e');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error in purchasePremiumWithRazorpay: $e');
       Get.snackbar(
         'Payment Error',
-        'Payment service is not available. Please restart the app and try again.',
+        'Failed to process payment: $e',
         backgroundColor: Colors.red,
         colorText: Colors.white,
-        duration: const Duration(seconds: 5),
       );
       return false;
     }
-
-    // Get Razorpay service
-    final razorpayService = Get.find<RazorpayService>();
-    
-    print('Calling RazorpayService.processPremiumPayment');
-    try {
-      await razorpayService.processPremiumPayment(
-        planType: planType,
-        amount: plan['price'].toDouble(),
-        planName: plan['name'],
-      );
-
-      // Payment initiated successfully - actual success/failure will be handled in Razorpay callbacks
-      return true;
-      
-    } catch (e) {
-      print('Payment processing failed: $e');
-      return false;
-    }
-
-  } catch (e) {
-    print('Error in purchasePremiumWithRazorpay: $e');
-    Get.snackbar(
-      'Payment Error',
-      'Failed to process payment: $e',
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-    );
-    return false;
   }
-}
-
-
-  // REMOVED: Mock purchasePremium method - no longer available
 
   /// Activate premium after successful Razorpay payment
-  Future<bool> activatePremiumAfterPayment(String planType, String paymentId, {double? amount}) async {
-  print('Activating premium for plan: $planType, paymentId: $paymentId');
-  
-  try {
-    final plan = subscriptionPlans[planType];
-    if (plan == null) {
-      print('Invalid plan type: $planType');
+  Future<bool> activatePremiumAfterPayment(
+    String planType,
+    String paymentId, {
+    double? amount,
+  }) async {
+    print('🎯 Activating premium for plan: $planType, paymentId: $paymentId');
+
+    try {
+      final plan = subscriptionPlans[planType];
+      if (plan == null) {
+        print('❌ Invalid plan type: $planType');
+        return false;
+      }
+
+      // Calculate expiry date
+      DateTime? expiryDate;
+      if (planType != 'lifetime') {
+        expiryDate = DateTime.now().add(Duration(days: plan['duration']));
+      }
+
+      // Update user premium status with payment ID and amount
+      await _updatePremiumStatus(
+        isPremium: true,
+        plan: planType,
+        expiryDate: expiryDate,
+        startDate: DateTime.now(),
+        paymentId: paymentId,
+        amount: amount ?? plan['price'],
+      );
+
+      print('✅ Premium activated successfully');
+      return true;
+    } catch (e) {
+      print('❌ Error activating premium: $e');
       return false;
     }
+  }
 
-    // Calculate expiry date
-    DateTime? expiryDate;
-    if (planType != 'lifetime') {
-      expiryDate = DateTime.now().add(Duration(days: plan['duration']));
+  /// Get detailed purchase history
+  Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
+    final user = _authService.currentUser.value;
+    if (user == null) return [];
+
+    try {
+      final querySnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('purchase_history')
+          .orderBy('purchaseDate', descending: true)
+          .get();
+
+      return querySnapshot.docs
+          .map((doc) => {'id': doc.id, ...doc.data()})
+          .toList();
+    } catch (e) {
+      print('❌ Error fetching detailed purchase history: $e');
+      return [];
     }
-
-    // Update user premium status with payment ID and amount
-    await _updatePremiumStatus(
-      isPremium: true,
-      plan: planType,
-      expiryDate: expiryDate,
-      startDate: DateTime.now(),
-      paymentId: paymentId,
-      amount: amount ?? plan['price'],
-    );
-
-    print('Premium activated successfully');
-    return true;
-
-  } catch (e) {
-    print('Error activating premium: $e');
-    return false;
   }
-}
-
-Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
-  final user = _authService.currentUser.value;
-  if (user == null) return [];
-
-  try {
-    final querySnapshot = await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('purchase_history')
-        .orderBy('purchaseDate', descending: true)
-        .get();
-
-    return querySnapshot.docs
-        .map((doc) => {'id': doc.id, ...doc.data()})
-        .toList();
-  } catch (e) {
-    print('Error fetching detailed purchase history: $e');
-    return [];
-  }
-}
 
   /// Restore premium subscription - only works with real payment history
   Future<bool> restorePremium() async {
@@ -249,7 +247,7 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
 
       // Check for actual payment history instead of mock restore
       final paymentHistory = await getPaymentHistory();
-      
+
       if (paymentHistory.isEmpty) {
         Get.back();
         Get.snackbar(
@@ -264,7 +262,7 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
       // Find the most recent completed payment
       final latestPayment = paymentHistory.first;
       final plan = latestPayment['plan'] as String?;
-      
+
       if (plan == null) {
         Get.back();
         Get.snackbar('Error', 'Invalid payment record found');
@@ -275,7 +273,9 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
       await _updatePremiumStatus(
         isPremium: true,
         plan: plan,
-        expiryDate: DateTime.now().add(Duration(days: subscriptionPlans[plan]?['duration'] ?? 365)),
+        expiryDate: DateTime.now().add(
+          Duration(days: subscriptionPlans[plan]?['duration'] ?? 365),
+        ),
         startDate: DateTime.now(),
         paymentId: latestPayment['paymentId'],
       );
@@ -290,7 +290,6 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
       );
 
       return true;
-
     } catch (e) {
       Get.back();
       Get.snackbar('Error', 'Failed to restore subscription: $e');
@@ -313,15 +312,13 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Get.back();
-              },
+              onPressed: () => Get.back(),
               child: const Text('Keep Premium'),
             ),
             TextButton(
               onPressed: () async {
                 Get.back();
-                
+
                 // Mark subscription as cancelled but keep it active until expiry
                 await _updatePremiumStatus(
                   isPremium: user.hasActivePremium,
@@ -347,80 +344,115 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
       );
 
       return true;
-
     } catch (e) {
       Get.snackbar('Error', 'Failed to cancel subscription: $e');
       return false;
     }
   }
 
-  /// Update premium status in Firestore - ONLY for Razorpay payments
+  /// CRITICAL: Enhanced premium status update with better timestamp management
   Future<void> _updatePremiumStatus({
-  required bool isPremium,
-  String? plan,
-  DateTime? expiryDate,
-  DateTime? startDate,
-  String? paymentId,
-  bool cancelled = false,
-  double? amount, // Add amount parameter
-}) async {
-  final user = _authService.currentUser.value;
-  if (user == null) return;
+    required bool isPremium,
+    String? plan,
+    DateTime? expiryDate,
+    DateTime? startDate,
+    String? paymentId,
+    bool cancelled = false,
+    double? amount,
+  }) async {
+    final user = _authService.currentUser.value;
+    if (user == null) return;
 
-  print('Updating premium status for user: ${user.uid}');
-  print('Plan: $plan, isPremium: $isPremium, paymentId: $paymentId');
+    print('🔄 Updating premium status for user: ${user.uid}');
+    print('   Plan: $plan, isPremium: $isPremium, paymentId: $paymentId');
 
-  final updateData = {
-    'isPremiumUser': isPremium,
-    'subscriptionPlan': plan,
-    'premiumExpiryDate': expiryDate?.toIso8601String(),
-    'subscriptionStartDate': startDate?.toIso8601String(),
-    'subscriptionCancelled': cancelled,
-    'lastPaymentId': paymentId,
-    'lastUpdated': DateTime.now().toIso8601String(),
-  };
+    // CRITICAL: Always use current timestamp for data freshness
+    final updateTimestamp = DateTime.now();
+    
+    final updateData = {
+      'isPremiumUser': isPremium,
+      'subscriptionPlan': plan,
+      'premiumExpiryDate': expiryDate?.toIso8601String(),
+      'subscriptionStartDate': startDate?.toIso8601String(),
+      'subscriptionCancelled': cancelled,
+      'lastPaymentId': paymentId,
+      'lastUpdated': updateTimestamp.toIso8601String(), // CRITICAL: Fresh timestamp
+    };
 
-  try {
-    await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .update(updateData);
+    try {
+      print('📝 Writing to Firestore with timestamp: $updateTimestamp');
+      
+      // CRITICAL: Update Firestore with fresh timestamp
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .update(updateData);
 
-    // Store detailed payment record ONLY for real Razorpay payments
-    if (paymentId != null && plan != null) {
-      final planDetails = subscriptionPlans[plan];
+      // Wait for Firestore to propagate the write
+      await Future.delayed(const Duration(milliseconds: 1000));
+
+      // Store detailed payment record ONLY for real Razorpay payments
+      if (paymentId != null && plan != null) {
+        await _createPaymentRecord(
+          user: user,
+          planType: plan,
+          paymentId: paymentId,
+          amount: amount,
+          expiryDate: expiryDate,
+          updateTimestamp: updateTimestamp,
+        );
+      }
+
+      // CRITICAL: Update local user data through AuthService
+      print('🔄 Updating local user data...');
+      await _authService.updateUserProfile(updateData);
+
+      print('✅ Premium status updated successfully');
+    } catch (e) {
+      print('❌ Error updating premium status: $e');
+      rethrow;
+    }
+  }
+
+  /// Create detailed payment record
+  Future<void> _createPaymentRecord({
+    required UserModel user,
+    required String planType,
+    required String paymentId,
+    double? amount,
+    DateTime? expiryDate,
+    required DateTime updateTimestamp,
+  }) async {
+    try {
+      final planDetails = subscriptionPlans[planType];
       final purchaseAmount = amount ?? planDetails?['price'] ?? 0.0;
-      
+
       // Generate a unique reference number
-      final referenceNumber = 'WS${DateTime.now().millisecondsSinceEpoch}${user.uid.substring(0, 6).toUpperCase()}';
-      
+      final referenceNumber =
+          'WS${updateTimestamp.millisecondsSinceEpoch}${user.uid.substring(0, 6).toUpperCase()}';
+
       // Calculate validity based on plan
       String validity;
-      if (plan == 'lifetime') {
+      if (planType == 'lifetime') {
         validity = 'Lifetime';
-      } else if (plan == 'yearly') {
+      } else if (planType == 'yearly') {
         validity = '1 Year';
-      } else if (plan == 'monthly') {
+      } else if (planType == 'monthly') {
         validity = '1 Month';
       } else {
         validity = planDetails?['duration']?.toString() ?? 'N/A';
       }
 
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('purchase_history')
-          .doc(paymentId)
-          .set({
+      final purchaseRecord = {
         'referenceNumber': referenceNumber,
         'paymentId': paymentId,
-        'plan': plan,
-        'planName': planDetails?['name'] ?? plan,
+        'plan': planType,
+        'planName': planDetails?['name'] ?? planType,
         'amount': purchaseAmount,
         'currency': planDetails?['currency'] ?? 'INR',
         'validity': validity,
         'validityDays': planDetails?['duration'] ?? -1,
-        'purchaseDate': DateTime.now().toIso8601String(),
+        'purchaseDate': updateTimestamp.toIso8601String(), // Use same timestamp
         'expiryDate': expiryDate?.toIso8601String(),
         'status': 'completed',
         'method': 'razorpay',
@@ -429,21 +461,23 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
         'savings': planDetails?['savings'],
         'userEmail': user.email,
         'userName': user.displayName ?? 'User',
-      });
+        'timestamp': updateTimestamp.toIso8601String(), // CRITICAL: Add timestamp
+      };
 
-      print('Purchase history entry created with reference: $referenceNumber');
+      // Store in purchase_history collection
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('purchase_history')
+          .doc(paymentId)
+          .set(purchaseRecord);
+
+      print('📋 Purchase history entry created with reference: $referenceNumber');
+    } catch (e) {
+      print('❌ Error creating payment record: $e');
+      // Don't rethrow - payment record creation shouldn't fail the main update
     }
-
-    // Update local user data
-    await _authService.updateUserProfile(updateData);
-    
-    print('Premium status updated successfully');
-
-  } catch (e) {
-    print('Error updating premium status: $e');
-    rethrow;
   }
-}
 
   /// Check premium status and update if expired
   Future<void> _checkPremiumStatus() async {
@@ -482,12 +516,12 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
           .doc(user.uid)
           .collection('feature_usage')
           .add({
-        'feature': feature,
-        'timestamp': DateTime.now().toIso8601String(),
-        'plan': user.subscriptionPlan,
-      });
+            'feature': feature,
+            'timestamp': DateTime.now().toIso8601String(),
+            'plan': user.subscriptionPlan,
+          });
     } catch (e) {
-      print('Error tracking feature usage: $e');
+      print('❌ Error tracking feature usage: $e');
     }
   }
 
@@ -495,14 +529,11 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
   void showPremiumRequired(String feature) {
     Get.dialog(
       AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
-            const Icon(
-              Icons.star,
-              color: Color(0xFFFFD700),
-            ),
-            const SizedBox(width: 8),
-            const Text('Premium Feature'),
+            Icon(Icons.star, color: Color(0xFFFFD700)),
+            SizedBox(width: 8),
+            Text('Premium Feature'),
           ],
         ),
         content: Column(
@@ -523,19 +554,14 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
                 '✨ Premium features are currently under development\n'
                 '🚀 Coming soon with amazing new capabilities!',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                ),
+                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
               ),
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Get.back();
-            },
+            onPressed: () => Get.back(),
             child: const Text('Maybe Later'),
           ),
           ElevatedButton(
@@ -590,6 +616,7 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
       'startDate': user.subscriptionStartDate,
       'expiryDate': user.premiumExpiryDate,
       'isExpiringSoon': user.isPremiumExpiringSoon,
+      'lastUpdated': user.lastUpdated,
     };
   }
 
@@ -597,7 +624,7 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
   String getFormattedPrice(String planType) {
     final plan = subscriptionPlans[planType];
     if (plan == null) return '₹0';
-    
+
     final price = plan['price'] as double;
     return '₹${price.toStringAsFixed(0)}';
   }
@@ -610,7 +637,7 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
     return '₹${savings.toStringAsFixed(0)}';
   }
 
-  /// Check if Razorpay is available (must be true for payments to work)
+  /// Check if Razorpay is available
   bool get isRazorpayAvailable => Get.isRegistered<RazorpayService>();
 
   /// Get payment history - only real Razorpay payments
@@ -622,21 +649,19 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
       final querySnapshot = await _firestore
           .collection('users')
           .doc(user.uid)
-          .collection('payments')
-          .where('method', isEqualTo: 'razorpay') // Only Razorpay payments
-          .orderBy('timestamp', descending: true)
+          .collection('purchase_history')
+          .where('method', isEqualTo: 'razorpay')
+          .orderBy('purchaseDate', descending: true)
           .get();
 
-      return querySnapshot.docs
-          .map((doc) => doc.data())
-          .toList();
+      return querySnapshot.docs.map((doc) => doc.data()).toList();
     } catch (e) {
-      print('Error fetching payment history: $e');
+      print('❌ Error fetching payment history: $e');
       return [];
     }
   }
 
-  /// Utility method for debugging
+  /// Enhanced debug method with timestamp information
   void debugPremiumStatus() {
     final user = _authService.currentUser.value;
     print('=== Premium Status Debug ===');
@@ -644,25 +669,57 @@ Future<List<Map<String, dynamic>>> getDetailedPurchaseHistory() async {
     print('Is Premium: $isPremiumUser');
     print('Current Plan: $currentPlan');
     print('Days Until Expiry: $daysUntilExpiry');
+    print('Last Updated: ${user?.lastUpdated}');
+    print('Subscription Start: ${user?.subscriptionStartDate}');
+    print('Subscription Expiry: ${user?.premiumExpiryDate}');
     print('Razorpay Available: $isRazorpayAvailable');
     print('Razorpay Service Registered: ${Get.isRegistered<RazorpayService>()}');
     print('===========================');
   }
 
-  /// Validate payment setup
+  /// Validate payment setup with enhanced checks
   bool validatePaymentSetup() {
+    print('🔍 Validating payment setup...');
+    
     if (!Get.isRegistered<RazorpayService>()) {
       print('❌ RazorpayService not registered');
       return false;
     }
-    
-    final razorpayService = Get.find<RazorpayService>();
-    if (!razorpayService.isInitialized) {
-      print('❌ RazorpayService not initialized');
+
+    try {
+      final razorpayService = Get.find<RazorpayService>();
+      if (!razorpayService.isInitialized) {
+        print('❌ RazorpayService not initialized');
+        return false;
+      }
+
+      print('✅ Payment setup is valid');
+      return true;
+    } catch (e) {
+      print('❌ Error accessing RazorpayService: $e');
       return false;
     }
+  }
+
+  /// Force refresh premium data (useful for testing)
+  Future<void> forceRefreshPremiumData() async {
+    print('🔄 Force refreshing premium data...');
     
-    print('✅ Payment setup is valid');
-    return true;
+    final user = _authService.currentUser.value;
+    if (user != null) {
+      await _authService.refreshCurrentUser();
+      print('✅ Premium data force refreshed');
+    }
+  }
+
+  /// Clear local cache (utility method)
+  Future<void> clearLocalCache() async {
+    try {
+      final box = await Hive.openBox('userBox');
+      await box.clear();
+      print('✅ Local cache cleared successfully');
+    } catch (e) {
+      print('❌ Error clearing local cache: $e');
+    }
   }
 }

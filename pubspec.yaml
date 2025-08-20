@@ -8,6 +8,8 @@ environment:
   sdk: '^3.8.0'
 
 dependencies:
+  flutter_phoenix: ^1.1.1
+  restart_app: ^1.2.1
   json_annotation: ^4.9.0
   flutter:
     sdk: flutter

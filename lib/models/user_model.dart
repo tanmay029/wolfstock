@@ -74,6 +74,10 @@ class UserModel extends HiveObject {
   @HiveField(22)
   bool? subscriptionCancelled;
 
+  @HiveField(23)
+  DateTime? lastUpdated;
+
+
   UserModel({
     required this.uid,
     required this.email,
@@ -97,6 +101,7 @@ class UserModel extends HiveObject {
     this.subscriptionStartDate,
     this.premiumFeaturesUsed = const [],
     this.lastPaymentId,
+    this.lastUpdated,
     this.subscriptionCancelled = false,
   }) : preferences = preferences ?? UserPreferences(),
        profile = profile ?? UserProfile();
@@ -320,6 +325,7 @@ class UserModel extends HiveObject {
       premiumFeaturesUsed: List<String>.from(json['premiumFeaturesUsed'] ?? []),
       lastPaymentId: json['lastPaymentId']?.toString().trim(),
       subscriptionCancelled: json['subscriptionCancelled'] ?? false,
+      lastUpdated: json['lastUpdated'] != null ? DateTime.parse(json['lastUpdated']) : null,
     );
   }
 
@@ -348,6 +354,7 @@ class UserModel extends HiveObject {
       'premiumFeaturesUsed': premiumFeaturesUsed,
       'lastPaymentId': lastPaymentId,
       'subscriptionCancelled': subscriptionCancelled,
+      'lastUpdated': lastUpdated?.toIso8601String(),
     };
   }
 
@@ -375,6 +382,7 @@ class UserModel extends HiveObject {
     List<String>? premiumFeaturesUsed,
     String? lastPaymentId,
     bool? subscriptionCancelled,
+    DateTime? lastUpdated,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -400,6 +408,7 @@ class UserModel extends HiveObject {
       premiumFeaturesUsed: premiumFeaturesUsed ?? this.premiumFeaturesUsed,
       lastPaymentId: lastPaymentId ?? this.lastPaymentId,
       subscriptionCancelled: subscriptionCancelled ?? this.subscriptionCancelled,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
     );
   }
 
@@ -466,6 +475,9 @@ class UserPreferences extends HiveObject {
   @HiveField(14)
   bool aiRecommendationAlerts;
 
+  @HiveField(15)
+  DateTime? lastUpdated;
+
   UserPreferences({
     this.currency = 'USD',
     this.language = 'en',
@@ -482,6 +494,7 @@ class UserPreferences extends HiveObject {
     this.portfolioSummaryAlerts = true,
     this.preferredMarket = 'US',
     this.aiRecommendationAlerts = true,
+    this.lastUpdated,
   });
 
   // === HELPER GETTERS ===

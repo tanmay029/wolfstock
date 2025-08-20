@@ -39,6 +39,7 @@ class UserModelAdapter extends TypeAdapter<UserModel> {
       subscriptionStartDate: fields[19] as DateTime?,
       premiumFeaturesUsed: (fields[20] as List).cast<String>(),
       lastPaymentId: fields[21] as String?,
+      lastUpdated: fields[23] as DateTime?,
       subscriptionCancelled: fields[22] as bool?,
     );
   }
@@ -46,7 +47,7 @@ class UserModelAdapter extends TypeAdapter<UserModel> {
   @override
   void write(BinaryWriter writer, UserModel obj) {
     writer
-      ..writeByte(23)
+      ..writeByte(24)
       ..writeByte(0)
       ..write(obj.uid)
       ..writeByte(1)
@@ -92,7 +93,9 @@ class UserModelAdapter extends TypeAdapter<UserModel> {
       ..writeByte(21)
       ..write(obj.lastPaymentId)
       ..writeByte(22)
-      ..write(obj.subscriptionCancelled);
+      ..write(obj.subscriptionCancelled)
+      ..writeByte(23)
+      ..write(obj.lastUpdated);
   }
 
   @override
@@ -132,13 +135,14 @@ class UserPreferencesAdapter extends TypeAdapter<UserPreferences> {
       portfolioSummaryAlerts: fields[12] as bool,
       preferredMarket: fields[13] as String,
       aiRecommendationAlerts: fields[14] as bool,
+      lastUpdated: fields[15] as DateTime?,
     );
   }
 
   @override
   void write(BinaryWriter writer, UserPreferences obj) {
     writer
-      ..writeByte(15)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.currency)
       ..writeByte(1)
@@ -168,7 +172,9 @@ class UserPreferencesAdapter extends TypeAdapter<UserPreferences> {
       ..writeByte(13)
       ..write(obj.preferredMarket)
       ..writeByte(14)
-      ..write(obj.aiRecommendationAlerts);
+      ..write(obj.aiRecommendationAlerts)
+      ..writeByte(15)
+      ..write(obj.lastUpdated);
   }
 
   @override
